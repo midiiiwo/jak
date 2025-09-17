@@ -2,6 +2,7 @@
 import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAdminAuth } from '@/lib/firebase/useAuth';
 import {
     Box,
     Flex,
@@ -34,9 +35,18 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
+    const { user, adminLogout } = useAdminAuth();
     const pathname = usePathname();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const handleLogout = async () => {
+        try {
+            await adminLogout();
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    };
 
     // Enhanced color mode values for better dark mode support
     const bgColor = useColorModeValue('white', 'gray.800');
@@ -150,7 +160,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 p={{ base: 6, md: isCollapsed ? 2 : 6 }}
                 position="fixed"
                 h="100vh"
-                overflowY="auto" 
+                overflowY="auto"
                 transition="all 0.3s ease"
                 zIndex={1000}
                 transform={{ base: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)', md: 'translateX(0)' }}
@@ -312,8 +322,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                 <>
                                     <HStack justify="space-between" w="100%">
                                         <VStack align="start" gap={0}>
-                                            <Text fontSize="sm" fontWeight="medium" color={textColor}>Admin User</Text>
-                                            <Text fontSize="xs" color={mutedTextColor}>admin@frozenhaven.com</Text>
+                                            <Text fontSize="sm" fontWeight="medium" color={textColor}>Administrator</Text>
+                                            <Text fontSize="xs" color={mutedTextColor}>{user?.email || 'Admin User'}</Text>
                                         </VStack>
                                     </HStack>
                                     <Button
@@ -321,6 +331,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                         variant="outline"
                                         colorPalette="red"
                                         w="100%"
+                                        onClick={handleLogout}
                                     >
                                         <FaSignOutAlt />
                                         Logout
@@ -330,6 +341,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                                 <IconButton
                                     aria-label="Logout"
                                     size="sm"
+                                    onClick={handleLogout}
                                     variant="outline"
                                     colorPalette="red"
                                 >
