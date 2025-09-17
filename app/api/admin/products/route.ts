@@ -1,103 +1,151 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/types/admin';
-
-// Mock database - In production, use Prisma with PostgreSQL/MongoDB
-// eslint-disable-next-line prefer-const
-let products: Product[] = [
-    {
-        id: '1',
-        title: 'Full Chicken',
-        description: 'Fresh whole chicken, perfect for roasting or grilling.',
-        price: 200,
-        category: 'Poultry',
-        image: '/img-1.jpeg',
-        stock: 50,
-        inStock: true,
-        sku: 'FC001',
-        unit: 'piece',
-        minStockLevel: 10,
-        cost: 150,
-        isActive: true,
-        isFeatured: true,
-        tags: ['chicken', 'poultry', 'fresh'],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: 'admin',
-        updatedBy: 'admin'
-    },
-    // Add more mock products...
-];
+import { NextRequest, NextResponse } from "next/server";
+import { Product } from "@/types/admin";
+import { productService } from "@/lib/services/database-service";
 
 export async function GET(request: NextRequest) {
+  try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const category = searchParams.get('category');
-    const search = searchParams.get('search');
-    const inStock = searchParams.get('inStock');
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const category = searchParams.get("category") || undefined;
+    const search = searchParams.get("search") || undefined;
+    const inStockParam = searchParams.get("inStock");
 
-    let filteredProducts = [...products];
-
-    // Apply filters
-    if (category) {
-        filteredProducts = filteredProducts.filter(p => p.category === category);
+    let inStock: boolean | undefined;
+    if (inStockParam === "true") {
+      inStock = true;
+    } else if (inStockParam === "false") {
+      inStock = false;
     }
 
-    if (search) {
-        filteredProducts = filteredProducts.filter(p =>
-            p.title.toLowerCase().includes(search.toLowerCase()) ||
-            p.description.toLowerCase().includes(search.toLowerCase()) ||
-            p.sku.toLowerCase().includes(search.toLowerCase())
-        );
-    }
-
-    if (inStock === 'true') {
-        filteredProducts = filteredProducts.filter(p => p.inStock);
-    } else if (inStock === 'false') {
-        filteredProducts = filteredProducts.filter(p => !p.inStock);
-    }
-
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+    const result = await productService.getProducts({
+      page,
+      limit,
+      category,
+      search,
+      inStock,
+    });
 
     return NextResponse.json({
-        products: paginatedProducts,
-        pagination: {
-            page,
-            limit,
-            total: filteredProducts.length,
-            totalPages: Math.ceil(filteredProducts.length / limit)
-        }
+      success: true,
+      products: result.products,
+      pagination: {
+        page,
+        limit,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limit),
+        hasMore: result.hasMore,
+      },
     });
+  } catch (error) {
+    console.error("Get products error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to fetch products",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
-    try {
-        const productData = await request.json();
+  try {
+    const productData = await request.json();
 
-        const newProduct: Product = {
-            ...productData,
-            id: Date.now().toString(),
-            inStock: productData.stock > 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            createdBy: 'admin', // In production, get from JWT token
-            updatedBy: 'admin'
-        };
+    // Validate required fields
+    const requiredFields = [
+      "title",
+      "description",
+      "price",
+      "category",
+      "stock",
+      "sku",
+      "unit",
+      "cost",
+    ];
+    const missingFields = requiredFields.filter(
+      (field) => !productData[field] && productData[field] !== 0
+    );
 
-        products.push(newProduct);
-
-        return NextResponse.json({
-            success: true,
-            product: newProduct
-        }, { status: 201 });
-    } catch (error) {
-        console.error('Create product error:', error);
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to create product'
-        }, { status: 500 });
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Missing required fields: ${missingFields.join(", ")}`,
+        },
+        { status: 400 }
+      );
     }
+
+    // TODO: Get admin user from JWT token
+    const adminUser = "admin"; // This should come from authentication middleware
+
+    const newProductData = {
+      ...productData,
+      isActive: true,
+      isFeatured: productData.isFeatured || false,
+      tags: productData.tags || [],
+      minStockLevel: productData.minStockLevel || 10,
+      createdBy: adminUser,
+      updatedBy: adminUser,
+    };
+
+    const newProduct = await productService.createProduct(newProductData);
+
+    return NextResponse.json(
+      {
+        success: true,
+        product: newProduct,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Create product error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to create product",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const { id, ...updateData } = await request.json();
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Product ID is required",
+        },
+        { status: 400 }
+      );
+    }
+
+    // TODO: Get admin user from JWT token
+    const adminUser = "admin";
+
+    const updatedProduct = await productService.updateProduct(id, {
+      ...updateData,
+      updatedBy: adminUser,
+    });
+
+    return NextResponse.json({
+      success: true,
+      product: updatedProduct,
+    });
+  } catch (error) {
+    console.error("Update product error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to update product",
+      },
+      { status: 500 }
+    );
+  }
 }

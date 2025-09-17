@@ -1,87 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/types/admin';
-
-// Mock database - same as in route.ts
-// eslint-disable-next-line prefer-const
-let products: Product[] = [];
+import { NextRequest, NextResponse } from "next/server";
+import { productService } from "@/lib/services/database-service";
 
 export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
     const { id } = await params;
-    const product = products.find(p => p.id === id);
+    const product = await productService.getProduct(id);
 
     if (!product) {
-        return NextResponse.json({
-            success: false,
-            error: 'Product not found'
-        }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Product not found",
+        },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
-        success: true,
-        product
+      success: true,
+      product,
     });
+  } catch (error) {
+    console.error("Get product error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to fetch product",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const { id } = await params;
-        const productData = await request.json();
-        const productIndex = products.findIndex(p => p.id === id);
+  try {
+    const { id } = await params;
+    const updateData = await request.json();
 
-        if (productIndex === -1) {
-            return NextResponse.json({
-                success: false,
-                error: 'Product not found'
-            }, { status: 404 });
-        }
+    // TODO: Get admin user from JWT token
+    const adminUser = "admin";
 
-        const updatedProduct: Product = {
-            ...products[productIndex],
-            ...productData,
-            inStock: productData.stock > 0,
-            updatedAt: new Date(),
-            updatedBy: 'admin' // In production, get from JWT token
-        };
+    const updatedProduct = await productService.updateProduct(id, {
+      ...updateData,
+      updatedBy: adminUser,
+    });
 
-        products[productIndex] = updatedProduct;
-
-        return NextResponse.json({
-            success: true,
-            product: updatedProduct
-        });
-    } catch (error) {
-        console.error('Update product error:', error);
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to update product'
-        }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      product: updatedProduct,
+    });
+  } catch (error) {
+    console.error("Update product error:", error);
+    if (error instanceof Error && error.message.includes("not found")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Product not found",
+        },
+        { status: 404 }
+      );
     }
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to update product",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
     const { id } = await params;
-    const productIndex = products.findIndex(p => p.id === id);
 
-    if (productIndex === -1) {
-        return NextResponse.json({
-            success: false,
-            error: 'Product not found'
-        }, { status: 404 });
+    // Check if product exists first
+    const product = await productService.getProduct(id);
+    if (!product) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Product not found",
+        },
+        { status: 404 }
+      );
     }
 
-    products.splice(productIndex, 1);
+    // Soft delete (set isActive to false)
+    await productService.deleteProduct(id);
 
     return NextResponse.json({
-        success: true,
-        message: 'Product deleted successfully'
+      success: true,
+      message: "Product deleted successfully",
     });
+  } catch (error) {
+    console.error("Delete product error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to delete product",
+      },
+      { status: 500 }
+    );
+  }
 }
