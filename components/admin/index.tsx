@@ -1,0 +1,9 @@
+export { default as Dashboard } from './dashboard';
+export { default as AnalyticsDashboard } from './analytics-dashboard';
+export { default as ProductManagement } from './products-management';
+export { default as AdminDashboard } from './dashboard';
+export { default as CategoriesManagement } from './categories-management';
+export { default as CustomerManagement } from './customer-management';
+export { default as OrderManagement } from './order-management';
+export { default as SettingsManagement } from './settings-management';
+export { default as StockManagement } from './stock-management';
