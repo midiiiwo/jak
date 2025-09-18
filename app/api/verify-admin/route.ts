@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const isAdminByUid = ADMIN_UIDS.includes(uid);
     const isAdminByEmail = ADMIN_EMAILS.includes(email || "");
-    const isAdmin = isAdminByUid && isAdminByEmail;
+    const isAdmin = isAdminByUid || isAdminByEmail;
 
     if (!isAdmin) {
       return NextResponse.json(
