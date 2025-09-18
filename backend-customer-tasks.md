@@ -9,13 +9,13 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 
 ## 🔥 HIGH PRIORITY TASKS
 
-### 1. Customer Authentication System ⏳
+### 1. Customer Experience System ⏳
 
-- [ ] Customer registration with Firebase Auth
-- [ ] Customer login/logout functionality
-- [ ] Password reset functionality
-- [ ] Email verification system
-- [ ] Social media login options (Google, Facebook)
+- [ ] Guest checkout functionality (no registration required)
+- [ ] Customer information collection during checkout
+- [ ] Order tracking without accounts
+- [ ] Contact form for customer support
+- [ ] Newsletter subscription (optional)
 
 ### 2. Product Catalog & Search ⏳
 
@@ -27,19 +27,19 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 
 ### 3. Shopping Cart System ⏳
 
-- [ ] Persistent cart storage (localStorage + Firestore)
+- [ ] Client-side cart storage (localStorage)
 - [ ] Cart item management (add, update, remove)
-- [ ] Cart synchronization across devices
-- [ ] Cart abandonment recovery
-- [ ] Guest checkout support
+- [ ] Cart persistence across browser sessions
+- [ ] Cart total calculations with delivery fees
+- [ ] Cart validation before checkout
 
 ### 4. Order Processing System ⏳
 
-- [ ] Order creation and validation
-- [ ] Order confirmation system
-- [ ] Order status tracking for customers
-- [ ] Order history and details
-- [ ] Order cancellation requests
+- [ ] Guest order creation and validation
+- [ ] Order confirmation system with email/SMS
+- [ ] Order tracking by order number and phone
+- [ ] Order details display
+- [ ] Order cancellation via phone/contact
 
 ### 5. Payment Integration ⏳
 
@@ -49,13 +49,13 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 - [ ] Payment receipt generation
 - [ ] Refund request handling
 
-### 6. Customer Profile Management ⏳
+### 6. Customer Information Management ⏳
 
-- [ ] Customer profile creation and updates
-- [ ] Delivery address management
-- [ ] Payment method storage
-- [ ] Order preferences
-- [ ] Communication preferences
+- [ ] Customer information collection during checkout
+- [ ] Delivery address validation
+- [ ] Order preferences (delivery time, special instructions)
+- [ ] Communication preferences (SMS/email notifications)
+- [ ] Customer data storage for admin reference
 
 ## 🛠 MEDIUM PRIORITY TASKS
 
@@ -121,10 +121,10 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 
 **Phase 1: Core Customer Features** ⏳
 
-- [ ] Customer Authentication
-- [ ] Product Catalog
-- [ ] Shopping Cart
-- [ ] Basic Order Processing
+- [ ] Product Catalog & Search
+- [ ] Shopping Cart System
+- [ ] Guest Checkout Process
+- [ ] Order Processing & Tracking
 
 **Phase 2: Enhanced Experience** ⏳
 
@@ -142,13 +142,13 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 
 ## 🎯 CURRENT SPRINT
 
-**Sprint Goal**: Implement core customer authentication and product catalog
+**Sprint Goal**: Implement core customer shopping experience without authentication
 
 **Tasks in Progress**:
 
-1. Setting up customer authentication flow
-2. Building public product API
-3. Implementing shopping cart persistence
+1. Building public product catalog API
+2. Implementing guest checkout process
+3. Setting up order tracking system
 
 **Next Up**:
 
@@ -158,12 +158,12 @@ E-commerce platform backend for JAK (Frozen Haven) - Customer Section
 
 ## 📝 CUSTOMER USER JOURNEY
 
-1. **Discovery**: Browse products, search, filter
-2. **Selection**: Add to cart, view details, compare
-3. **Authentication**: Register/login, guest checkout
-4. **Checkout**: Review cart, add delivery info, payment
-5. **Confirmation**: Order placed, email sent, tracking provided
-6. **Fulfillment**: Order prepared, shipped, delivered
-7. **Post-Purchase**: Review product, reorder, support
+1. **Discovery**: Browse products, search, filter by category/price
+2. **Selection**: Add to cart, view details, compare products
+3. **Cart Review**: Review cart, update quantities, see totals
+4. **Checkout**: Enter contact info, delivery address, payment
+5. **Confirmation**: Order placed, confirmation SMS/email, tracking number
+6. **Fulfillment**: Order prepared, delivered to address
+7. **Post-Purchase**: Track order, contact support, reorder via phone
 
 **Last Updated**: ${new Date().toISOString().split('T')[0]}

@@ -19,29 +19,30 @@ export function useAdminAuth() {
   const [isVerifying, setIsVerifying] = useState(false);
   const router = useRouter();
 
-  // ✅ Secure backend verification with session cookies
+  // ✅ Secure backend verification with JWT tokens
   const verifyAdminStatus = async (user: User): Promise<boolean> => {
     setIsVerifying(true);
     try {
       const idToken = await user.getIdToken();
 
-      // Create session cookie for admin authentication
-      const sessionResponse = await fetch("/api/auth/session", {
+      // Use JWT-based admin verification
+      const verifyResponse = await fetch("/api/verify-admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken }),
       });
 
-      if (!sessionResponse.ok) {
-        console.error("Session creation error:", sessionResponse.status);
+      if (!verifyResponse.ok) {
+        console.error("Admin verification error:", verifyResponse.status);
         return false;
       }
 
-      const sessionData = await sessionResponse.json();
-      console.log("Backend session creation:", sessionData);
+      const verifyData = await verifyResponse.json();
+      console.log("Backend admin verification:", verifyData);
 
-      if (sessionData.success) {
-        // Store user data (session cookie is handled by browser)
+      if (verifyData.success && verifyData.token) {
+        // Store JWT token and user data
+        localStorage.setItem("adminToken", verifyData.token);
         localStorage.setItem(
           "adminUser",
           JSON.stringify({
@@ -66,8 +67,9 @@ export function useAdminAuth() {
   useEffect(() => {
     const checkExistingSession = async () => {
       const userData = localStorage.getItem("adminUser");
+      const adminToken = localStorage.getItem("adminToken");
 
-      if (userData) {
+      if (userData && adminToken) {
         try {
           const parsedUser = JSON.parse(userData);
           setUser({ ...parsedUser, isAdmin: true } as AdminUser);
@@ -76,6 +78,7 @@ export function useAdminAuth() {
         } catch (error) {
           console.error("Error parsing stored user data:", error);
           localStorage.removeItem("adminUser");
+          localStorage.removeItem("adminToken");
         }
       }
 
@@ -178,11 +181,9 @@ export function useAdminAuth() {
       setError(null);
       await signOut(clientAuth);
 
-      // Remove stored user data
+      // Remove stored user data and JWT token
       localStorage.removeItem("adminUser");
-
-      // Call logout endpoint to clear session cookie
-      await fetch("/api/auth/session-logout", { method: "POST" });
+      localStorage.removeItem("adminToken");
 
       router.push("/admin/login");
     } catch (err) {

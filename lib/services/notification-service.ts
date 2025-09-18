@@ -414,11 +414,20 @@ export class NotificationService {
   /**
    * Get admin alerts
    */
-  async getAdminAlerts(limit: number = 20): Promise<any[]> {
+  async getAdminAlerts(
+    limit: number = 20,
+    unreadOnly: boolean = false
+  ): Promise<any[]> {
     try {
-      const snapshot = await db
+      let query = db
         .collection("admin_alerts")
-        .where("expiresAt", ">", new Date())
+        .where("expiresAt", ">", new Date());
+
+      if (unreadOnly) {
+        query = query.where("isRead", "==", false);
+      }
+
+      const snapshot = await query
         .orderBy("createdAt", "desc")
         .limit(limit)
         .get();
