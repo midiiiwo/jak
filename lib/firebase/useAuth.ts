@@ -179,6 +179,12 @@ export function useAdminAuth() {
   const adminLogout = async () => {
     try {
       setError(null);
+
+      // Clear session cookie on server
+      await fetch("/api/auth/session-logout", {
+        method: "POST",
+      });
+
       await signOut(clientAuth);
 
       // Remove stored user data and JWT token

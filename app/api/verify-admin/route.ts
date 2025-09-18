@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
       { expiresIn: "5d" }
     );
 
-    return NextResponse.json({
+    // Create response with session cookie
+    const response = NextResponse.json({
       success: true,
       token,
       user: {
@@ -62,6 +63,17 @@ export async function POST(req: NextRequest) {
         isAdmin,
       },
     });
+
+    // Set HTTP-only session cookie for server-side verification
+    response.cookies.set("session", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 5 * 24 * 60 * 60, // 5 days in seconds
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Admin verification error:", error);
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });

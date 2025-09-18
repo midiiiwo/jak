@@ -1,1 +1,3 @@
-c
+backend-customer-tasks.md
+CUSTOMER-BACKEND-TESTING.md
+lib/firebase/useAuth.ts
