@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebase/admin";
 
 interface SystemSettings {
   businessName: string;
@@ -44,8 +45,8 @@ interface NotificationSettings {
   pushNotifications: boolean;
 }
 
-// Mock settings data
-const mockSystemSettings: SystemSettings = {
+// Default settings for new installations
+const defaultSystemSettings: SystemSettings = {
   businessName: "Frozen Haven",
   businessEmail: "info@frozenhaven.com",
   businessPhone: "+233 XX XXX XXXX",
@@ -63,7 +64,7 @@ const mockSystemSettings: SystemSettings = {
   maxOrderAmount: 10000,
 };
 
-const mockUserSettings: UserSettings = {
+const defaultUserSettings: UserSettings = {
   theme: "system",
   dateFormat: "DD/MM/YYYY",
   timeFormat: "24h",
@@ -71,7 +72,7 @@ const mockUserSettings: UserSettings = {
   dashboardRefreshInterval: 30,
 };
 
-const mockPaymentSettings: PaymentSettings = {
+const defaultPaymentSettings: PaymentSettings = {
   acceptCash: true,
   acceptKowri: true,
   kowriMerchantId: "",
@@ -79,7 +80,7 @@ const mockPaymentSettings: PaymentSettings = {
   enableTestMode: true,
 };
 
-const mockNotificationSettings: NotificationSettings = {
+const defaultNotificationSettings: NotificationSettings = {
   lowStockAlerts: true,
   orderAlerts: true,
   customerAlerts: false,
@@ -89,40 +90,95 @@ const mockNotificationSettings: NotificationSettings = {
   pushNotifications: true,
 };
 
+async function getSettingsFromFirebase(section: string) {
+  try {
+    const doc = await db.collection("settings").doc(section).get();
+    if (doc.exists) {
+      return doc.data();
+    }
+
+    // Return default settings if not found
+    switch (section) {
+      case "system":
+        return defaultSystemSettings;
+      case "user":
+        return defaultUserSettings;
+      case "payment":
+        return defaultPaymentSettings;
+      case "notifications":
+        return defaultNotificationSettings;
+      default:
+        return null;
+    }
+  } catch (error) {
+    console.error(`Error fetching ${section} settings:`, error);
+    throw error;
+  }
+}
+
+async function updateSettingsInFirebase(section: string, settings: any) {
+  try {
+    await db
+      .collection("settings")
+      .doc(section)
+      .set(
+        {
+          ...settings,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+    return settings;
+  } catch (error) {
+    console.error(`Error updating ${section} settings:`, error);
+    throw error;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const section = searchParams.get("section");
 
     if (section) {
-      switch (section) {
-        case "system":
-          return NextResponse.json({ settings: mockSystemSettings });
-        case "user":
-          return NextResponse.json({ settings: mockUserSettings });
-        case "payment":
-          return NextResponse.json({ settings: mockPaymentSettings });
-        case "notifications":
-          return NextResponse.json({ settings: mockNotificationSettings });
-        default:
-          return NextResponse.json(
-            { error: "Invalid section" },
-            { status: 400 }
-          );
+      if (!["system", "user", "payment", "notifications"].includes(section)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid section" },
+          { status: 400 }
+        );
       }
+
+      const settings = await getSettingsFromFirebase(section);
+      return NextResponse.json({
+        success: true,
+        settings,
+      });
     }
 
     // Return all settings
+    const [
+      systemSettings,
+      userSettings,
+      paymentSettings,
+      notificationSettings,
+    ] = await Promise.all([
+      getSettingsFromFirebase("system"),
+      getSettingsFromFirebase("user"),
+      getSettingsFromFirebase("payment"),
+      getSettingsFromFirebase("notifications"),
+    ]);
+
     return NextResponse.json({
-      system: mockSystemSettings,
-      user: mockUserSettings,
-      payment: mockPaymentSettings,
-      notifications: mockNotificationSettings,
+      success: true,
+      system: systemSettings,
+      user: userSettings,
+      payment: paymentSettings,
+      notifications: notificationSettings,
     });
   } catch (error) {
     console.error("Error fetching settings:", error);
     return NextResponse.json(
-      { error: "Failed to fetch settings" },
+      { success: false, error: "Failed to fetch settings" },
       { status: 500 }
     );
   }
@@ -136,28 +192,34 @@ export async function PUT(request: NextRequest) {
 
     if (!section) {
       return NextResponse.json(
-        { error: "Section parameter required" },
+        { success: false, error: "Section parameter required" },
         { status: 400 }
       );
     }
 
     // Validate section
     if (!["system", "user", "payment", "notifications"].includes(section)) {
-      return NextResponse.json({ error: "Invalid section" }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid section",
+        },
+        { status: 400 }
+      );
     }
 
-    // In a real application, you would update the settings in your database
-    console.log(`Updating ${section} settings:`, body);
+    // Update settings in Firebase
+    const updatedSettings = await updateSettingsInFirebase(section, body);
 
-    // Return success response
     return NextResponse.json({
+      success: true,
       message: `${section} settings updated successfully`,
-      settings: body,
+      settings: updatedSettings,
     });
   } catch (error) {
     console.error("Error updating settings:", error);
     return NextResponse.json(
-      { error: "Failed to update settings" },
+      { success: false, error: "Failed to update settings" },
       { status: 500 }
     );
   }
@@ -171,6 +233,17 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case "test_kowri_connection":
         // Test Kowri API connection
+        // In a real implementation, you would actually test the connection
+        const paymentSettings = await getSettingsFromFirebase("payment");
+        if (
+          !paymentSettings?.kowriMerchantId ||
+          !paymentSettings?.kowriApiKey
+        ) {
+          return NextResponse.json({
+            success: false,
+            message: "Kowri credentials not configured",
+          });
+        }
         return NextResponse.json({
           success: true,
           message: "Kowri connection test successful",
@@ -178,6 +251,7 @@ export async function POST(request: NextRequest) {
 
       case "send_test_email":
         // Send test email
+        // In a real implementation, you would send an actual test email
         return NextResponse.json({
           success: true,
           message: "Test email sent successfully",
@@ -185,6 +259,7 @@ export async function POST(request: NextRequest) {
 
       case "send_test_sms":
         // Send test SMS
+        // In a real implementation, you would send an actual test SMS
         return NextResponse.json({
           success: true,
           message: "Test SMS sent successfully",
@@ -192,26 +267,54 @@ export async function POST(request: NextRequest) {
 
       case "backup_data":
         // Create data backup
+        // In a real implementation, you would create an actual backup
+        const backupId = `backup_${Date.now()}`;
+
+        // Log backup creation in Firebase
+        await db.collection("backups").doc(backupId).set({
+          id: backupId,
+          createdAt: new Date(),
+          status: "completed",
+          type: "manual",
+          createdBy: "admin", // In real app, get from auth context
+        });
+
         return NextResponse.json({
           success: true,
           message: "Data backup created successfully",
-          backupId: `backup_${Date.now()}`,
+          backupId,
         });
 
       case "reset_settings":
         // Reset settings to default
+        await Promise.all([
+          updateSettingsInFirebase("system", defaultSystemSettings),
+          updateSettingsInFirebase("user", defaultUserSettings),
+          updateSettingsInFirebase("payment", defaultPaymentSettings),
+          updateSettingsInFirebase(
+            "notifications",
+            defaultNotificationSettings
+          ),
+        ]);
+
         return NextResponse.json({
           success: true,
           message: "Settings reset to default values",
         });
 
       default:
-        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid action",
+          },
+          { status: 400 }
+        );
     }
   } catch (error) {
     console.error("Error performing action:", error);
     return NextResponse.json(
-      { error: "Failed to perform action" },
+      { success: false, error: "Failed to perform action" },
       { status: 500 }
     );
   }

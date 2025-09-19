@@ -1,106 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-// Mock customer data (same as in main route for consistency)
-const mockCustomers = [
-  {
-    id: "cust_001",
-    name: "John Doe",
-    email: "john.doe@email.com",
-    phone: "+233 24 123 4567",
-    address: "123 Main St, Accra, Ghana",
-    registrationDate: "2024-01-15T08:30:00Z",
-    totalOrders: 15,
-    totalSpent: 2450.5,
-    lastOrderDate: "2024-08-25T14:20:00Z",
-    status: "active",
-    customerType: "premium",
-    notes: "Loyal customer, prefers frozen chicken",
-  },
-  {
-    id: "cust_002",
-    name: "Jane Smith",
-    email: "jane.smith@email.com",
-    phone: "+233 20 987 6543",
-    address: "456 Oak Ave, Kumasi, Ghana",
-    registrationDate: "2024-02-20T10:15:00Z",
-    totalOrders: 8,
-    totalSpent: 1320.75,
-    lastOrderDate: "2024-08-28T16:45:00Z",
-    status: "active",
-    customerType: "regular",
-    notes: "Frequent seafood orders",
-  },
-  {
-    id: "cust_003",
-    name: "Michael Johnson",
-    email: "michael.j@email.com",
-    phone: "+233 26 555 0123",
-    address: "789 Pine Rd, Tamale, Ghana",
-    registrationDate: "2024-03-10T12:00:00Z",
-    totalOrders: 3,
-    totalSpent: 450.25,
-    lastOrderDate: "2024-07-15T11:30:00Z",
-    status: "inactive",
-    customerType: "regular",
-    notes: "Seasonal customer",
-  },
-  {
-    id: "cust_004",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@email.com",
-    phone: "+233 24 777 8888",
-    address: "321 Elm St, Cape Coast, Ghana",
-    registrationDate: "2024-04-05T09:20:00Z",
-    totalOrders: 22,
-    totalSpent: 3750.8,
-    lastOrderDate: "2024-08-29T13:10:00Z",
-    status: "active",
-    customerType: "vip",
-    notes: "VIP customer, bulk orders for restaurant",
-  },
-  {
-    id: "cust_005",
-    name: "David Brown",
-    email: "david.brown@email.com",
-    phone: "+233 55 333 2222",
-    address: "654 Maple Dr, Sunyani, Ghana",
-    registrationDate: "2024-05-12T15:45:00Z",
-    totalOrders: 6,
-    totalSpent: 890.4,
-    lastOrderDate: "2024-08-20T10:25:00Z",
-    status: "active",
-    customerType: "regular",
-    notes: "Prefers delivery on weekends",
-  },
-];
-
-// Mock order history for customers
-const mockOrderHistory = [
-  {
-    id: "ord_001",
-    customerId: "cust_001",
-    date: "2024-08-25T14:20:00Z",
-    status: "delivered",
-    total: 145.5,
-    items: ["Frozen Chicken Breast", "Tilapia Fish"],
-  },
-  {
-    id: "ord_002",
-    customerId: "cust_001",
-    date: "2024-08-15T10:30:00Z",
-    status: "delivered",
-    total: 89.25,
-    items: ["Beef Chunks", "Shrimp"],
-  },
-  {
-    id: "ord_003",
-    customerId: "cust_002",
-    date: "2024-08-28T16:45:00Z",
-    status: "processing",
-    total: 234.75,
-    items: ["Salmon Fillet", "Crab Meat", "Prawns"],
-  },
-];
+import { customerService, orderService } from "@/lib/services/database-service";
 
 export async function GET(
   request: NextRequest,
@@ -109,19 +8,20 @@ export async function GET(
   try {
     const { id: customerId } = await params;
 
-    // Find customer
-    const customer = mockCustomers.find((c) => c.id === customerId);
+    // Find customer from Firebase
+    const customer = await customerService.getCustomer(customerId);
     if (!customer) {
       return NextResponse.json(
-        { error: "Customer not found" },
+        { success: false, error: "Customer not found" },
         { status: 404 }
       );
     }
 
-    // Get customer's order history
-    const orderHistory = mockOrderHistory.filter(
-      (order) => order.customerId === customerId
-    );
+    // Get customer's order history from Firebase
+    const ordersResult = await orderService.getOrders({
+      customerId,
+      limit: 100, // Get recent orders
+    });
 
     // Calculate additional customer metrics
     const metrics = {
@@ -152,9 +52,25 @@ export async function GET(
         ),
     };
 
+    // Format order history for response
+    const orderHistory = ordersResult.orders.map((order) => ({
+      id: order.id,
+      customerId: order.customerId,
+      date: order.createdAt.toISOString(),
+      status: order.status,
+      total: order.total,
+      items: order.items
+        .map((item) => item.title || `Product ${item.productId}`)
+        .slice(0, 3), // Show first 3 items
+      itemCount: order.items.length,
+    }));
+
     return NextResponse.json({
+      success: true,
       customer: {
         ...customer,
+        registrationDate: customer.registrationDate.toISOString(),
+        lastOrderDate: customer.lastOrderDate?.toISOString() || null,
         metrics,
       },
       orderHistory,
@@ -162,7 +78,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching customer details:", error);
     return NextResponse.json(
-      { error: "Failed to fetch customer details" },
+      { success: false, error: "Failed to fetch customer details" },
       { status: 500 }
     );
   }
@@ -176,33 +92,33 @@ export async function PUT(
     const { id: customerId } = await params;
     const updateData = await request.json();
 
-    // Find customer
-    const customerIndex = mockCustomers.findIndex((c) => c.id === customerId);
-    if (customerIndex === -1) {
+    // Update customer using Firebase service
+    const updatedCustomer = await customerService.updateCustomer(
+      customerId,
+      updateData
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Customer updated successfully",
+      customer: {
+        ...updatedCustomer,
+        registrationDate: updatedCustomer.registrationDate.toISOString(),
+        lastOrderDate: updatedCustomer.lastOrderDate?.toISOString() || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating customer:", error);
+
+    if (error instanceof Error && error.message.includes("not found")) {
       return NextResponse.json(
-        { error: "Customer not found" },
+        { success: false, error: "Customer not found" },
         { status: 404 }
       );
     }
 
-    // Update customer
-    const updatedCustomer = {
-      ...mockCustomers[customerIndex],
-      ...updateData,
-      id: customerId, // Ensure ID doesn't change
-    };
-
-    // In a real app, you would update in database
-    console.log("Updating customer:", updatedCustomer);
-
-    return NextResponse.json({
-      message: "Customer updated successfully",
-      customer: updatedCustomer,
-    });
-  } catch (error) {
-    console.error("Error updating customer:", error);
     return NextResponse.json(
-      { error: "Failed to update customer" },
+      { success: false, error: "Failed to update customer" },
       { status: 500 }
     );
   }
