@@ -7,24 +7,6 @@ import {
   StockMovement,
 } from "@/types/admin";
 import { Customer } from "@/types/customer";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  Timestamp,
-  DocumentData,
-  QueryDocumentSnapshot,
-  FieldValue,
-} from "firebase/firestore";
 
 // Collections
 const COLLECTIONS = {
@@ -101,13 +83,6 @@ export class ProductService {
     // In production, consider using Algolia or Elasticsearch
     q = q.orderBy("createdAt", "desc");
 
-    if (page > 1) {
-      const offset = (page - 1) * limit;
-      q = q.offset(offset);
-    }
-
-    q = q.limit(limit + 1); // Get one extra to check if there are more
-
     const snapshot = await q.get();
     const products: Product[] = [];
 
@@ -129,13 +104,14 @@ export class ProductService {
       );
     }
 
-    const hasMore = filteredProducts.length > limit;
-    const resultProducts = hasMore
-      ? filteredProducts.slice(0, limit)
-      : filteredProducts;
+    // Apply pagination after filtering
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+    const hasMore = endIndex < filteredProducts.length;
 
     return {
-      products: resultProducts,
+      products: paginatedProducts,
       total: filteredProducts.length,
       hasMore,
     };
@@ -317,15 +293,22 @@ export class OrderService {
     const docRef = await this.collection.add(newOrder);
     await docRef.update({ id: docRef.id });
 
-    // Update product stock for each item
+    // Update product stock for each item using admin SDK approach
     const batch = db.batch();
     for (const item of orderData.items) {
       const productRef = db
         .collection(COLLECTIONS.PRODUCTS)
         .doc(item.productId);
-      batch.update(productRef, {
-        stock: FieldValue.increment(-item.quantity),
-      });
+      // We need to get current stock first since admin SDK doesn't have FieldValue.increment
+      const productDoc = await productRef.get();
+      if (productDoc.exists) {
+        const currentStock = productDoc.data()?.stock || 0;
+        batch.update(productRef, {
+          stock: currentStock - item.quantity,
+          inStock: currentStock - item.quantity > 0,
+          updatedAt: new Date(),
+        });
+      }
     }
     await batch.commit();
 
@@ -376,13 +359,6 @@ export class OrderService {
       q = q.where("createdAt", "<=", endDate);
     }
 
-    if (page > 1) {
-      const offset = (page - 1) * limit;
-      q = q.offset(offset);
-    }
-
-    q = q.limit(limit + 1);
-
     const snapshot = await q.get();
     const orders: Order[] = [];
 
@@ -390,11 +366,14 @@ export class OrderService {
       orders.push({ id: doc.id, ...doc.data() } as Order);
     });
 
-    const hasMore = orders.length > limit;
-    const resultOrders = hasMore ? orders.slice(0, limit) : orders;
+    // Apply pagination after getting all results
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedOrders = orders.slice(startIndex, endIndex);
+    const hasMore = endIndex < orders.length;
 
     return {
-      orders: resultOrders,
+      orders: paginatedOrders,
       total: orders.length,
       hasMore,
     };
@@ -476,13 +455,6 @@ export class StockMovementService {
       q = q.where("createdAt", "<=", endDate);
     }
 
-    if (page > 1) {
-      const offset = (page - 1) * limit;
-      q = q.offset(offset);
-    }
-
-    q = q.limit(limit + 1);
-
     const snapshot = await q.get();
     const movements: StockMovement[] = [];
 
@@ -490,11 +462,14 @@ export class StockMovementService {
       movements.push({ id: doc.id, ...doc.data() } as StockMovement);
     });
 
-    const hasMore = movements.length > limit;
-    const resultMovements = hasMore ? movements.slice(0, limit) : movements;
+    // Apply pagination after getting all results
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedMovements = movements.slice(startIndex, endIndex);
+    const hasMore = endIndex < movements.length;
 
     return {
-      movements: resultMovements,
+      movements: paginatedMovements,
       total: movements.length,
       hasMore,
     };
@@ -553,13 +528,6 @@ export class CustomerService {
       q = q.where("customerType", "==", customerType);
     }
 
-    if (page > 1) {
-      const offset = (page - 1) * limit;
-      q = q.offset(offset);
-    }
-
-    q = q.limit(limit + 1);
-
     const snapshot = await q.get();
     let customers: Customer[] = [];
 
@@ -578,11 +546,14 @@ export class CustomerService {
       );
     }
 
-    const hasMore = customers.length > limit;
-    const resultCustomers = hasMore ? customers.slice(0, limit) : customers;
+    // Apply pagination after filtering
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedCustomers = customers.slice(startIndex, endIndex);
+    const hasMore = endIndex < customers.length;
 
     return {
-      customers: resultCustomers,
+      customers: paginatedCustomers,
       total: customers.length,
       hasMore,
     };
