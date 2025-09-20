@@ -10,12 +10,12 @@ import {
   VStack,
   HStack,
   Icon,
-  useToast,
   Circle,
   Flex,
 } from "@chakra-ui/react";
 import { FaCloudUploadAlt, FaTrash, FaImage, FaPlus } from "react-icons/fa";
 import { useColorModeValue } from "@/components/ui/color-mode";
+import { toaster } from "@/components/ui/toaster";
 
 interface ImageUploadProps {
   productId?: string;
@@ -34,7 +34,7 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const toast = useToast();
+  // Using toaster from UI components
 
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const bgColor = useColorModeValue("gray.50", "gray.700");
@@ -47,10 +47,10 @@ export default function ImageUpload({
 
     // Check file limits
     if (images.length + fileArray.length > maxImages) {
-      toast({
+      toaster.create({
         title: "Too many images",
         description: `Maximum ${maxImages} images allowed`,
-        status: "error",
+        type: "error",
         duration: 3000,
       });
       return;
@@ -87,10 +87,10 @@ export default function ImageUpload({
         setImages(updatedImages);
         onImagesChange?.(updatedImages);
 
-        toast({
+        toaster.create({
           title: "Images uploaded successfully",
           description: result.message,
-          status: "success",
+          type: "success",
           duration: 3000,
         });
       } else {
@@ -98,11 +98,11 @@ export default function ImageUpload({
       }
     } catch (error) {
       console.error("Upload error:", error);
-      toast({
+      toaster.create({
         title: "Upload failed",
         description:
           error instanceof Error ? error.message : "Failed to upload images",
-        status: "error",
+        type: "error",
         duration: 5000,
       });
     } finally {
@@ -126,11 +126,11 @@ export default function ImageUpload({
           throw new Error(result.error);
         }
       } catch (error) {
-        toast({
+        toaster.create({
           title: "Delete failed",
           description:
             error instanceof Error ? error.message : "Failed to delete image",
-          status: "error",
+          type: "error",
           duration: 5000,
         });
         return;

@@ -9,3 +9,8 @@ jak/app/api/admin/settings/route.ts - FIXED: Replaced mock settings data with pr
 jak/hooks/use-customers.ts - FIXED: Replaced mock data with actual API calls to customer endpoints, improved error handling and return types
 jak/app/api/admin/stock/[id]/route.ts - FIXED: Replaced dummy data with Firebase integration using productService for GET and PUT operations
 jak/app/api/admin/stock/movements/route.ts - FIXED: Replaced mock data with Firebase integration using stockMovementService and productService, added proper validation and error handling
+
+NEW SESSION - FIXING REMAINING BACKEND ISSUES:
+server/websocket.ts - FIXED: Converted ES6 imports to CommonJS to fix module import error
+components/admin/products/image-upload.tsx - FIXED: Removed useToast import and replaced with toaster from UI components
+hooks/use-customers.ts - CHECKING: Verifying if dummy data still exists

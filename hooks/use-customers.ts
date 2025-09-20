@@ -28,55 +28,43 @@ export function useCustomers() {
   const fetchCustomerData = async () => {
     setLoading(true);
     try {
-      // Mock data - replace with actual API calls
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Fetch actual customer data from API
+      const response = await fetch("/api/admin/customers");
 
-      const mockCustomers: Customer[] = [
-        {
-          id: "1",
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "+233 123 456 789",
-          address: "123 Main St, Accra",
-          registrationDate: "2024-01-15",
-          totalOrders: 15,
-          totalSpent: 2450,
-          lastOrderDate: "2024-03-01",
-          status: "active",
-          customerType: "premium",
-          notes: "Loyal customer",
-        },
-        {
-          id: "2",
-          name: "Jane Smith",
-          email: "jane@example.com",
-          phone: "+233 987 654 321",
-          address: "456 Oak Ave, Kumasi",
-          registrationDate: "2024-02-20",
-          totalOrders: 8,
-          totalSpent: 1200,
-          lastOrderDate: "2024-02-28",
-          status: "active",
-          customerType: "regular",
-          notes: "",
-        },
-      ];
+      if (!response.ok) {
+        throw new Error(`Failed to fetch customers: ${response.status}`);
+      }
 
-      const mockStats: CustomerStats = {
-        totalCustomers: 247,
-        activeCustomers: 198,
-        inactiveCustomers: 49,
-        vipCustomers: 12,
-        premiumCustomers: 45,
-        totalRevenue: 125000,
-        averageOrderValue: 85.5,
-        newCustomersThisMonth: 23,
-      };
+      const data = await response.json();
 
-      setCustomers(mockCustomers);
-      setCustomerStats(mockStats);
+      // Set customers and stats from API response
+      setCustomers(data.customers || []);
+      setCustomerStats(
+        data.stats || {
+          totalCustomers: 0,
+          activeCustomers: 0,
+          inactiveCustomers: 0,
+          vipCustomers: 0,
+          premiumCustomers: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0,
+          newCustomersThisMonth: 0,
+        }
+      );
     } catch (error) {
       console.error("Failed to fetch customer data:", error);
+      // Set empty state on error
+      setCustomers([]);
+      setCustomerStats({
+        totalCustomers: 0,
+        activeCustomers: 0,
+        inactiveCustomers: 0,
+        vipCustomers: 0,
+        premiumCustomers: 0,
+        totalRevenue: 0,
+        averageOrderValue: 0,
+        newCustomersThisMonth: 0,
+      });
     } finally {
       setLoading(false);
     }
