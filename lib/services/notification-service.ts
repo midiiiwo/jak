@@ -394,17 +394,22 @@ export class NotificationService {
     offset: number = 0
   ): Promise<NotificationLog[]> {
     try {
-      const snapshot = await db
-        .collection(this.logsCollection)
-        .orderBy("createdAt", "desc")
-        .limit(limit)
-        .offset(offset)
-        .get();
+      // Get all logs and filter/sort in memory
+      const snapshot = await db.collection(this.logsCollection).get();
 
-      return snapshot.docs.map((doc) => ({
+      let logs = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as NotificationLog[];
+
+      // Sort by createdAt descending
+      logs.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Apply pagination
+      return logs.slice(offset, offset + limit);
     } catch (error) {
       console.error("Error fetching notification logs:", error);
       return [];
@@ -419,23 +424,30 @@ export class NotificationService {
     unreadOnly: boolean = false
   ): Promise<any[]> {
     try {
-      let query = db
-        .collection("admin_alerts")
-        .where("expiresAt", ">", new Date());
+      // Get all alerts and filter in memory
+      const snapshot = await db.collection("admin_alerts").get();
 
-      if (unreadOnly) {
-        query = query.where("isRead", "==", false);
-      }
-
-      const snapshot = await query
-        .orderBy("createdAt", "desc")
-        .limit(limit)
-        .get();
-
-      return snapshot.docs.map((doc) => ({
+      let alerts = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
+
+      // Filter by expiration date
+      alerts = alerts.filter((alert) => new Date(alert.expiresAt) > new Date());
+
+      // Filter by read status if needed
+      if (unreadOnly) {
+        alerts = alerts.filter((alert) => !alert.isRead);
+      }
+
+      // Sort by createdAt descending
+      alerts.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Apply limit
+      return alerts.slice(0, limit);
     } catch (error) {
       console.error("Error fetching admin alerts:", error);
       return [];
@@ -463,18 +475,20 @@ export class NotificationService {
    */
   async cleanupExpiredAlerts(): Promise<void> {
     try {
-      const expiredQuery = await db
-        .collection("admin_alerts")
-        .where("expiresAt", "<", new Date())
-        .get();
+      // Get all alerts and filter in memory
+      const snapshot = await db.collection("admin_alerts").get();
+
+      const expiredAlerts = snapshot.docs.filter(
+        (doc) => new Date(doc.data().expiresAt) < new Date()
+      );
 
       const batch = db.batch();
-      expiredQuery.docs.forEach((doc) => {
+      expiredAlerts.forEach((doc) => {
         batch.delete(doc.ref);
       });
 
       await batch.commit();
-      console.log(`Cleaned up ${expiredQuery.docs.length} expired alerts`);
+      console.log(`Cleaned up ${expiredAlerts.length} expired alerts`);
     } catch (error) {
       console.error("Error cleaning up expired alerts:", error);
     }

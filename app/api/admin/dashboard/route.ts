@@ -17,46 +17,40 @@ export async function GET(request: NextRequest) {
     );
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Fetch data in parallel for better performance
-    const [
-      allProducts,
-      lowStockProducts,
-      allOrders,
-      pendingOrders,
-      todayOrders,
-      monthlyOrders,
-      allCustomers,
-    ] = await Promise.all([
+    // Fetch all data without complex queries
+    const [allProducts, allOrders, allCustomers] = await Promise.all([
       productService.getProducts({ limit: 10000 }),
-      productService.getLowStockProducts(),
       orderService.getOrders({ limit: 10000 }),
-      orderService.getOrders({ status: "pending", limit: 1000 }),
-      orderService.getOrders({
-        startDate: startOfToday,
-        endDate: new Date(),
-        limit: 1000,
-      }),
-      orderService.getOrders({
-        startDate: startOfMonth,
-        endDate: new Date(),
-        limit: 1000,
-      }),
       customerService.getCustomers({ limit: 10000 }),
     ]);
 
-    // Calculate out of stock products
-    const outOfStockProducts = allProducts.products.filter(
-      (p) => p.stock <= 0
-    ).length;
+    // Filter data in memory instead of using Firestore queries
+    const lowStockProducts = allProducts.products.filter(
+      (p) => p.stock > 0 && p.stock <= (p.minStockLevel || 10)
+    );
+
+    const outOfStockProducts = allProducts.products.filter((p) => p.stock <= 0);
+
+    const pendingOrders = allOrders.orders.filter(
+      (order) => order.status === "pending"
+    );
+
+    const todayOrders = allOrders.orders.filter(
+      (order) => new Date(order.createdAt) >= startOfToday
+    );
+
+    const monthlyOrders = allOrders.orders.filter(
+      (order) => new Date(order.createdAt) >= startOfMonth
+    );
 
     // Calculate today's revenue
-    const todayRevenue = todayOrders.orders.reduce(
+    const todayRevenue = todayOrders.reduce(
       (sum, order) => sum + order.total,
       0
     );
 
     // Calculate monthly revenue
-    const monthlyRevenue = monthlyOrders.orders.reduce(
+    const monthlyRevenue = monthlyOrders.reduce(
       (sum, order) => sum + order.total,
       0
     );
@@ -98,9 +92,9 @@ export async function GET(request: NextRequest) {
     const stats: DashboardStats = {
       totalProducts: allProducts.products.length,
       lowStockProducts: lowStockProducts.length,
-      outOfStockProducts,
+      outOfStockProducts: outOfStockProducts.length,
       totalOrders: allOrders.orders.length,
-      pendingOrders: pendingOrders.orders.length,
+      pendingOrders: pendingOrders.length,
       todayRevenue,
       monthlyRevenue,
       topSellingProducts,

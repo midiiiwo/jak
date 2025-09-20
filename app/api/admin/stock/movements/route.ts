@@ -4,6 +4,31 @@ import {
   productService,
 } from "@/lib/services/database-service";
 
+// ✅ Utility to safely format Firestore Timestamp, string, number, or null
+function formatDate(value: any): string | null {
+  if (!value) return null;
+
+  try {
+    if (typeof value.toDate === "function") {
+      // Firestore Timestamp
+      return value.toDate().toISOString();
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -40,7 +65,7 @@ export async function GET(request: NextRequest) {
           newStock: movement.newStock,
           reason: movement.reason,
           reference: movement.reference,
-          timestamp: movement.createdAt.toISOString(),
+          timestamp: formatDate(movement.createdAt) ?? "N/A",
           user: movement.createdBy || "System",
         };
       })
@@ -154,7 +179,7 @@ export async function POST(request: NextRequest) {
         newStock: newMovement.newStock,
         reason: newMovement.reason,
         reference: newMovement.reference,
-        timestamp: newMovement.createdAt.toISOString(),
+        timestamp: formatDate(newMovement.createdAt) ?? "N/A",
         user: newMovement.createdBy,
       },
       message: "Stock movement recorded successfully",

@@ -69,33 +69,36 @@ export class ProductService {
       isActive = true,
     } = options;
 
-    let q = this.collection.where("isActive", "==", isActive);
-
-    if (category) {
-      q = q.where("category", "==", category);
-    }
-
-    if (inStock !== undefined) {
-      q = q.where("inStock", "==", inStock);
-    }
-
-    // For search, we'll need to implement client-side filtering for now
-    // In production, consider using Algolia or Elasticsearch
-    q = q.orderBy("createdAt", "desc");
-
-    const snapshot = await q.get();
-    const products: Product[] = [];
+    // Get all products and filter in memory to avoid index requirements
+    const snapshot = await this.collection.get();
+    let products: Product[] = [];
 
     snapshot.forEach((doc) => {
       const data = doc.data() as Product;
       products.push({ ...data, id: doc.id });
     });
 
-    // Apply search filter client-side if needed
-    let filteredProducts = products;
+    // Apply filters in memory
+    let filteredProducts = products.filter(
+      (product) => product.isActive === isActive
+    );
+
+    if (category) {
+      filteredProducts = filteredProducts.filter(
+        (product) => product.category === category
+      );
+    }
+
+    if (inStock !== undefined) {
+      filteredProducts = filteredProducts.filter(
+        (product) => product.inStock === inStock
+      );
+    }
+
+    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredProducts = products.filter(
+      filteredProducts = filteredProducts.filter(
         (product) =>
           product.title.toLowerCase().includes(searchLower) ||
           product.description.toLowerCase().includes(searchLower) ||
@@ -103,6 +106,12 @@ export class ProductService {
           product.tags.some((tag) => tag.toLowerCase().includes(searchLower))
       );
     }
+
+    // Sort by createdAt descending
+    filteredProducts.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
     // Apply pagination after filtering
     const startIndex = (page - 1) * limit;
@@ -189,30 +198,32 @@ export class ProductService {
   }
 
   async getLowStockProducts(threshold?: number): Promise<Product[]> {
-    const products = await this.getProducts({ inStock: true });
+    // Get all active products and filter in memory
+    const { products } = await this.getProducts({ isActive: true });
 
-    return products.products.filter((product) => {
+    return products.filter((product) => {
       const minLevel = threshold || product.minStockLevel || 10;
       return product.stock <= minLevel;
     });
   }
 
   async getFeaturedProducts(limit = 6): Promise<Product[]> {
-    const q = this.collection
-      .where("isActive", "==", true)
-      .where("isFeatured", "==", true)
-      .where("inStock", "==", true)
-      .orderBy("createdAt", "desc")
-      .limit(limit);
-
-    const snapshot = await q.get();
-    const products: Product[] = [];
-
-    snapshot.forEach((doc) => {
-      products.push({ id: doc.id, ...doc.data() } as Product);
+    // Get all active, in-stock products and filter in memory
+    const { products } = await this.getProducts({
+      isActive: true,
+      inStock: true,
     });
 
-    return products;
+    // Filter for featured products and sort by creation date
+    const featuredProducts = products
+      .filter((product) => product.isFeatured)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, limit);
+
+    return featuredProducts;
   }
 }
 
@@ -237,18 +248,21 @@ export class CategoryService {
   }
 
   async getCategories(activeOnly = true): Promise<Category[]> {
-    let q = this.collection.orderBy("sortOrder");
-
-    if (activeOnly) {
-      q = q.where("isActive", "==", true);
-    }
-
-    const snapshot = await q.get();
-    const categories: Category[] = [];
+    // Get all categories and filter/sort in memory
+    const snapshot = await this.collection.get();
+    let categories: Category[] = [];
 
     snapshot.forEach((doc) => {
       categories.push({ id: doc.id, ...doc.data() } as Category);
     });
+
+    // Apply active filter if needed
+    if (activeOnly) {
+      categories = categories.filter((category) => category.isActive);
+    }
+
+    // Sort by sortOrder
+    categories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     return categories;
   }
@@ -341,32 +355,38 @@ export class OrderService {
       endDate,
     } = options;
 
-    let q = this.collection.orderBy("createdAt", "desc");
-
-    if (status) {
-      q = q.where("status", "==", status);
-    }
-
-    if (customerId) {
-      q = q.where("customerId", "==", customerId);
-    }
-
-    if (startDate) {
-      q = q.where("createdAt", ">=", startDate);
-    }
-
-    if (endDate) {
-      q = q.where("createdAt", "<=", endDate);
-    }
-
-    const snapshot = await q.get();
-    const orders: Order[] = [];
+    // Get all orders and filter in memory
+    const snapshot = await this.collection.get();
+    let orders: Order[] = [];
 
     snapshot.forEach((doc) => {
       orders.push({ id: doc.id, ...doc.data() } as Order);
     });
 
-    // Apply pagination after getting all results
+    // Sort by createdAt descending
+    orders.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // Apply filters in memory
+    if (status) {
+      orders = orders.filter((order) => order.status === status);
+    }
+
+    if (customerId) {
+      orders = orders.filter((order) => order.customerId === customerId);
+    }
+
+    if (startDate) {
+      orders = orders.filter((order) => new Date(order.createdAt) >= startDate);
+    }
+
+    if (endDate) {
+      orders = orders.filter((order) => new Date(order.createdAt) <= endDate);
+    }
+
+    // Apply pagination after filtering
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const paginatedOrders = orders.slice(startIndex, endIndex);
@@ -437,32 +457,44 @@ export class StockMovementService {
       endDate,
     } = options;
 
-    let q = this.collection.orderBy("createdAt", "desc");
-
-    if (productId) {
-      q = q.where("productId", "==", productId);
-    }
-
-    if (type) {
-      q = q.where("type", "==", type);
-    }
-
-    if (startDate) {
-      q = q.where("createdAt", ">=", startDate);
-    }
-
-    if (endDate) {
-      q = q.where("createdAt", "<=", endDate);
-    }
-
-    const snapshot = await q.get();
-    const movements: StockMovement[] = [];
+    // Get all movements and filter in memory
+    const snapshot = await this.collection.get();
+    let movements: StockMovement[] = [];
 
     snapshot.forEach((doc) => {
       movements.push({ id: doc.id, ...doc.data() } as StockMovement);
     });
 
-    // Apply pagination after getting all results
+    // Sort by createdAt descending
+    movements.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // Apply filters in memory
+    if (productId) {
+      movements = movements.filter(
+        (movement) => movement.productId === productId
+      );
+    }
+
+    if (type) {
+      movements = movements.filter((movement) => movement.type === type);
+    }
+
+    if (startDate) {
+      movements = movements.filter(
+        (movement) => new Date(movement.createdAt) >= startDate
+      );
+    }
+
+    if (endDate) {
+      movements = movements.filter(
+        (movement) => new Date(movement.createdAt) <= endDate
+      );
+    }
+
+    // Apply pagination after filtering
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const paginatedMovements = movements.slice(startIndex, endIndex);
@@ -518,24 +550,33 @@ export class CustomerService {
   ): Promise<{ customers: Customer[]; total: number; hasMore: boolean }> {
     const { page = 1, limit = 10, status, customerType, search } = options;
 
-    let q = this.collection.orderBy("registrationDate", "desc");
-
-    if (status) {
-      q = q.where("status", "==", status);
-    }
-
-    if (customerType) {
-      q = q.where("customerType", "==", customerType);
-    }
-
-    const snapshot = await q.get();
+    // Get all customers and filter in memory
+    const snapshot = await this.collection.get();
     let customers: Customer[] = [];
 
     snapshot.forEach((doc) => {
       customers.push({ id: doc.id, ...doc.data() } as Customer);
     });
 
-    // Apply search filter client-side if needed
+    // Sort by registrationDate descending
+    customers.sort(
+      (a, b) =>
+        new Date(b.registrationDate).getTime() -
+        new Date(a.registrationDate).getTime()
+    );
+
+    // Apply filters in memory
+    if (status) {
+      customers = customers.filter((customer) => customer.status === status);
+    }
+
+    if (customerType) {
+      customers = customers.filter(
+        (customer) => customer.customerType === customerType
+      );
+    }
+
+    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
       customers = customers.filter(
